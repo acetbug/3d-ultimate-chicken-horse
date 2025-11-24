@@ -326,22 +326,44 @@ export class PlaceholderGenerator {
 
     static createCloud(): THREE.Group {
         const group = new THREE.Group();
-        const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.9 });
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff, 
+            flatShading: true, 
+            transparent: true, 
+            opacity: 0.9 
+        });
         
-        // Create a few overlapping spheres/boxes to look like a low-poly cloud
-        const geo1 = new THREE.BoxGeometry(2, 1, 1.5);
-        const mesh1 = new THREE.Mesh(geo1, mat);
-        group.add(mesh1);
+        // Use multiple low-poly spheres (Icosahedron) to create an irregular cloud shape
+        const numBlobs = 3 + Math.floor(Math.random() * 3); // 3 to 5 blobs
+        
+        for (let i = 0; i < numBlobs; i++) {
+            const radius = 0.5 + Math.random() * 0.5;
+            const detail = 0; // Low poly look
+            const geo = new THREE.IcosahedronGeometry(radius, detail);
+            
+            const mesh = new THREE.Mesh(geo, mat);
+            
+            // Random position offset, clustered around center
+            const offset = 1.0;
+            mesh.position.set(
+                (Math.random() - 0.5) * offset * 2,
+                (Math.random() - 0.5) * offset * 0.5,
+                (Math.random() - 0.5) * offset
+            );
+            
+            // Random rotation for variety
+            mesh.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
 
-        const geo2 = new THREE.BoxGeometry(1.5, 1.2, 1.2);
-        const mesh2 = new THREE.Mesh(geo2, mat);
-        mesh2.position.set(1, 0.2, 0);
-        group.add(mesh2);
+            // Random scale variation
+            const s = 0.8 + Math.random() * 0.4;
+            mesh.scale.set(s, s, s);
 
-        const geo3 = new THREE.BoxGeometry(1.5, 0.8, 1.5);
-        const mesh3 = new THREE.Mesh(geo3, mat);
-        mesh3.position.set(-1, 0.1, 0.2);
-        group.add(mesh3);
+            group.add(mesh);
+        }
 
         return group;
     }

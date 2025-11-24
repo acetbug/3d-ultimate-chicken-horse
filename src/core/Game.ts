@@ -1114,30 +1114,17 @@ export class Game {
         // 2. Goal Platform (Height 2, Surface 2)
         // Box Height 2 -> Center y=1 -> Top y=2
         // Offset in Z to create a gap
-        const goalPlatBody = BodyFactory.createBox(10, 2, 10, 0, new CANNON.Vec3(0, 1, 15));
+        const goalPlatBody = BodyFactory.createBox(10, 2, 10, 0, new CANNON.Vec3(0, 1, 25));
         (goalPlatBody as any).userData = { tag: 'ground' };
         this.physicsWorld.world.addBody(goalPlatBody);
 
         const goalPlatMesh = new THREE.Mesh(startPlatGeo, startPlatMat); // Reuse geo/mat
-        goalPlatMesh.position.set(0, 1, 15);
+        goalPlatMesh.position.set(0, 1, 25);
         goalPlatMesh.receiveShadow = true;
         this.scene.add(goalPlatMesh);
         (goalPlatBody as any).meshReference = goalPlatMesh;
 
-        // 3. Gap Spikes (Between platforms)
-        // Gap is from z=5 to z=10.
-        // Add some spikes at y=-2 or something to kill players who fall?
-        // Or just let them fall to y=-5 death plane.
-        // User asked for "Between platforms there are spikes".
-        // Let's add a platform with spikes in the middle, lower down?
-        // Or just floating spikes?
-        // Let's add a lower platform with spikes.
-        const pitBody = BodyFactory.createBox(10, 1, 5, 0, new CANNON.Vec3(0, -2, 7.5));
-        this.physicsWorld.world.addBody(pitBody);
-        const pitMesh = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 5), startPlatMat);
-        pitMesh.position.set(0, -2, 7.5);
-        this.scene.add(pitMesh);
-        (pitBody as any).meshReference = pitMesh;
+        // 3. Gap Spikes (Removed)
 
         // 4. Zones
         // Start Zone (Blue)
@@ -1147,16 +1134,16 @@ export class Game {
 
         // Goal Zone (Red) - On Goal Platform
         const goalZone = PlaceholderGenerator.createZone(2, 2, 2, 0xff0000);
-        goalZone.position.set(0, 3, 15); // Platform y=2 -> Zone center y=3
+        goalZone.position.set(0, 3, 25); // Platform y=2 -> Zone center y=3
         this.scene.add(goalZone);
 
         // 5. Goal Flag
         const flagGroup = PlaceholderGenerator.createFlag();
-        flagGroup.position.set(0, 2, 15);
+        flagGroup.position.set(0, 2, 25);
         this.scene.add(flagGroup);
         
         // Goal Physics (Trigger)
-        const goalBody = BodyFactory.createBox(1, 2, 1, 0, new CANNON.Vec3(0, 3, 15));
+        const goalBody = BodyFactory.createBox(1, 2, 1, 0, new CANNON.Vec3(0, 3, 25));
         goalBody.isTrigger = true;
         (goalBody as any).userData = { tag: 'goal' };
         this.physicsWorld.world.addBody(goalBody);
