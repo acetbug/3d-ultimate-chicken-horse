@@ -436,6 +436,45 @@ export class Game {
         return 0;
     }
 
+    private getItemSize(itemId: string, rotationIndex: number): THREE.Vector3 {
+        if (itemId === 'wood_block_321') {
+            // Rotation 0: 3x1x2
+            // Rotation 1: 2x1x3
+            if (rotationIndex % 2 === 0) {
+                return new THREE.Vector3(3, 1, 2);
+            } else {
+                return new THREE.Vector3(2, 1, 3);
+            }
+        }
+        return new THREE.Vector3(1, 1, 1);
+    }
+
+    private updateGhostPositionFromMouse() {
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const planeHeight = 8;
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeHeight);
+        const target = new THREE.Vector3();
+        this.raycaster.ray.intersectPlane(plane, target);
+        
+        const size = this.getItemSize(this.selectedItem || '', this.buildRotation);
+        
+        // Snap to grid
+        // If size is even, snap to integer (Round)
+        // If size is odd, snap to half-integer (Floor + 0.5)
+        const snapX = (size.x % 2 === 0) ? Math.round(target.x) : (Math.floor(target.x) + 0.5);
+        const snapZ = (size.z % 2 === 0) ? Math.round(target.z) : (Math.floor(target.z) + 0.5);
+        
+        this.buildGridPos.set(snapX, this.buildHeight + 0.5, snapZ);
+        
+        this.gridHighlight.position.set(this.buildGridPos.x, 10, this.buildGridPos.z);
+        this.gridHighlight.visible = true;
+        
+        if (this.ghostObject && this.selectedItem) {
+            this.ghostObject.position.copy(this.buildGridPos);
+            this.ghostObject.position.y += this.getItemYShift(this.selectedItem);
+        }
+    }
+
     private setupEvents() {
         window.addEventListener('mousemove', (event) => {
             // Update mouse coordinates for Raycasting
@@ -460,28 +499,9 @@ export class Game {
                     this.camera.quaternion.setFromEuler(euler);
                 }
             } else if (this.state === GameState.BUILD_PLACE) {
-                // Raycast to ground plane (High plane for selection) - For Blocks
-                this.raycaster.setFromCamera(this.mouse, this.camera);
-                const planeHeight = 8;
-                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeHeight);
-                const target = new THREE.Vector3();
-                this.raycaster.ray.intersectPlane(plane, target);
-                
-                // Snap to grid (Center alignment)
-                this.buildGridPos.set(
-                    Math.floor(target.x) + 0.5, 
-                    this.buildHeight + 0.5, 
-                    Math.floor(target.z) + 0.5
-                );
-                
-                // Update Column Highlight
-                this.gridHighlight.position.set(this.buildGridPos.x, 10, this.buildGridPos.z);
-                this.gridHighlight.visible = true;
-                
-                if (this.ghostObject && this.selectedItem) {
-                    this.ghostObject.position.copy(this.buildGridPos);
-                    this.ghostObject.position.y += this.getItemYShift(this.selectedItem);
+                this.updateGhostPositionFromMouse();
 
+                if (this.ghostObject && this.selectedItem) {
                     // Bomb Range Indicator
                     if (this.selectedItem === 'bomb') {
                         if (!this.bombRangeIndicator) {
@@ -563,6 +583,7 @@ export class Game {
                     this.buildRotation = (this.buildRotation + 1) % 4;
                     if (this.ghostObject) {
                         this.updateGhostRotation();
+                        this.updateGhostPositionFromMouse();
                     }
                 }
             }
