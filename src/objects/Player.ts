@@ -1,0 +1,187 @@
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+import { Character } from './Character';
+
+export class Player extends Character {
+    private isJumping: boolean = false;
+    private jumpTime: number = 0;
+    private readonly MAX_JUMP_TIME: number = 0.3; 
+    private readonly MIN_JUMP_FORCE: number = 5; // Reduced from 6
+    private readonly JUMP_HOLD_FORCE: number = 12; // Reduced from 15
+    private readonly MOVE_SPEED: number = 8; // Reduced from 12
+    private readonly SPRINT_MULTIPLIER: number = 1.5;
+    
+    public isDead: boolean = false;
+    public hasWon: boolean = false;
+    public score: number = 0;
+
+    constructor(mesh: THREE.Group, body: CANNON.Body) {
+        super(mesh, body);
+        
+        // Collision Listener
+        this.body.addEventListener('collide', (e: any) => {
+            const contactBody = e.body;
+            if (contactBody.userData) {
+                const tag = contactBody.userData.tag;
+                if (tag === 'trap' || tag === 'black_hole' || tag === 'turret') {
+                    this.isDead = true;
+                    this.lastHitBy = contactBody.userData.owner; // Track killer
+                } else if (tag === 'goal') {
+                    this.hasWon = true;
+                } else if (tag === 'spring') {
+                    this.body.velocity.y = 20; // High bounce
+                    this.isJumping = true;
+                } else if (tag === 'coin') {
+                    if (!contactBody.userData.collected) {
+                        this.score += 1;
+                        contactBody.userData.collected = true;
+                        // Hide coin visually
+                        if (contactBody.meshReference) {
+                            contactBody.meshReference.visible = false;
+                        }
+                    }
+                } else if (tag === 'conveyor') {
+                    this.body.velocity.z -= 5; // Push forward
+                }
+            }
+        });
+    }
+
+    public lastHitBy: string | null = null;
+
+    public update() {
+        super.update();
+    }
+
+    public setInput(input: { x: number, y: number, jump: boolean, sprint: boolean }, cameraAngleY: number) {
+        if (this.isDead || this.hasWon) return;
+
+        const grounded = this.canJump();
+        
+        // --- Wall Climbing ---
+        // Removed as per request
+        /*
+        // Calculate move direction for wall check
+        let moveDir = new THREE.Vector3(0, 0, 0);
+        if (Math.abs(input.x) > 0.1 || Math.abs(input.y) > 0.1) {
+             const inputAngle = Math.atan2(input.x, input.y);
+             const targetRotation = cameraAngleY + inputAngle;
+             moveDir.set(Math.sin(targetRotation), 0, Math.cos(targetRotation));
+        }
+        
+        const wallContact = this.checkWallInDirection(moveDir);
+
+        if (wallContact && input.y > 0.1) {
+            // Climb Up
+            const climbSpeed = 5;
+            this.body.velocity.y = climbSpeed;
+            
+            // Keep pushing against the wall slightly to maintain contact
+            // This is crucial to prevent the physics engine from pushing the player away
+            // and breaking the wall contact check in the next frame.
+            this.body.velocity.x = moveDir.x * 2; 
+            this.body.velocity.z = moveDir.z * 2;
+            
+            this.isJumping = false;
+            return; // Skip normal movement
+        }
+        */
+
+        // --- Movement ---
+
+        if (grounded) {
+            const speed = input.sprint ? this.MOVE_SPEED * this.SPRINT_MULTIPLIER : this.MOVE_SPEED;
+
+            if (Math.abs(input.x) > 0.1 || Math.abs(input.y) > 0.1) {
+                const inputAngle = Math.atan2(input.x, input.y); 
+                const targetRotation = cameraAngleY + inputAngle;
+
+                const vx = Math.sin(targetRotation) * speed;
+                const vz = Math.cos(targetRotation) * speed;
+
+                // Normal movement (instant)
+                this.body.velocity.x = vx;
+                this.body.velocity.z = vz;
+
+                this.body.quaternion.setFromEuler(0, targetRotation, 0);
+            } else {
+                // Stop immediately (Honey or Ground)
+                this.body.velocity.x = 0;
+                this.body.velocity.z = 0;
+                // Rotate with camera even when idle
+                this.body.quaternion.setFromEuler(0, cameraAngleY, 0);
+            }
+        } else {
+            // Air Control
+            if (Math.abs(input.x) > 0.1 || Math.abs(input.y) > 0.1) {
+                const speed = this.MOVE_SPEED;
+                const inputAngle = Math.atan2(input.x, input.y); 
+                const targetRotation = cameraAngleY + inputAngle;
+
+                const vx = Math.sin(targetRotation) * speed;
+                const vz = Math.cos(targetRotation) * speed;
+
+                // Smooth air control
+                const lerp = 0.1;
+                this.body.velocity.x += (vx - this.body.velocity.x) * lerp;
+                this.body.velocity.z += (vz - this.body.velocity.z) * lerp;
+
+                this.body.quaternion.setFromEuler(0, targetRotation, 0);
+            }
+        }
+
+        // --- Jumping ---
+        if (input.jump) {
+            if (grounded) {
+                this.isJumping = true;
+                this.jumpTime = 0;
+                
+                let jumpForce = this.MIN_JUMP_FORCE;
+
+                this.body.velocity.y = jumpForce;
+            } else if (this.isJumping && this.jumpTime < this.MAX_JUMP_TIME) {
+                this.body.applyForce(new CANNON.Vec3(0, this.JUMP_HOLD_FORCE, 0), this.body.position);
+                this.jumpTime += 1 / 60;
+            }
+        } else {
+            this.isJumping = false;
+        }
+    }
+
+    private canJump(): boolean {
+        if (!this.body.world) return false;
+        
+        // Start ray slightly above the feet (pivot) to avoid starting inside the ground surface
+        const start = this.body.position.clone();
+        start.y += 0.1; 
+        
+        const end = start.clone();
+        end.y -= 0.4; // Cast down: 0.1 above + 0.3 below feet. 
+
+        const result = new CANNON.RaycastResult();
+        this.body.world.raycastClosest(start, end, {
+            collisionFilterMask: -1, // Check all groups
+            skipBackfaces: true
+        }, result);
+
+        return result.hasHit;
+    }
+
+    public checkDeath(): boolean {
+        if (this.isDead) return true;
+        if (this.body.position.y < -5) { // Lowered threshold for faster reset
+            this.isDead = true;
+            return true;
+        }
+        return false;
+    }
+
+    public resetPosition(position: CANNON.Vec3) {
+        this.body.position.copy(position);
+        this.body.velocity.set(0, 0, 0);
+        this.body.angularVelocity.set(0, 0, 0);
+        this.body.quaternion.set(0, 0, 0, 1);
+        this.isDead = false;
+        this.hasWon = false;
+    }
+}
