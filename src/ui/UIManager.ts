@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { PlaceholderGenerator } from "../utils/PlaceholderGenerator";
 
 export class UIManager {
   private uiLayer: HTMLElement;
@@ -53,16 +54,19 @@ export class UIManager {
     label: string,
     onClick: () => void
   ): THREE.Mesh {
-    const geom = new THREE.PlaneGeometry(width, height);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffcc66,
-      transparent: true,
-      opacity: 0.95,
-    });
-    const mesh = new THREE.Mesh(geom, mat);
-    mesh.userData.type = "button";
+    const mesh = PlaceholderGenerator.createUIBoardButton(width, height, label);
+    // type 已在 PlaceholderGenerator 中设置
     mesh.userData.onClick = onClick;
     mesh.userData.label = label;
+    // 简单的按下反馈：缩放一下
+    mesh.userData.__pressEffect = () => {
+      // 使用一个很短的动画帧，避免和角色选中缩放冲突
+      const original = mesh.scale.clone();
+      mesh.scale.set(original.x * 0.9, original.y * 0.9, original.z);
+      setTimeout(() => {
+        mesh.scale.copy(original);
+      }, 80);
+    };
     return mesh;
   }
 
@@ -121,6 +125,34 @@ export class UIManager {
   }
 
   /**
+   * 鼠标按下时的 3D UI 反馈（不触发逻辑，只做视觉）
+   */
+  public handlePointerDown(): boolean {
+    if (!this.scene || !this.camera || !this.raycaster || !this.uiRoot3D)
+      return false;
+
+    this.raycaster.setFromCamera(this.pointerNDC, this.camera as THREE.Camera);
+    const intersects = this.raycaster.intersectObjects(
+      this.uiRoot3D.children,
+      true
+    );
+    if (intersects.length === 0) return false;
+
+    const obj = intersects[0].object as any;
+    let target: any = obj;
+    while (target && !target.userData?.type) {
+      target = target.parent;
+    }
+    if (target && target.userData.type === "button") {
+      if (typeof target.userData.__pressEffect === "function") {
+        target.userData.__pressEffect();
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * 创建 3D 风格的标题（登录）界面
    */
   public showTitleScreen(
@@ -145,8 +177,9 @@ export class UIManager {
     // 清理旧的 3D UI
     this.uiRoot3D.clear();
 
-    const panel = this.createPanel(6, 3.5);
-    panel.position.set(0, 1.5, -5);
+    const panel = this.createPanel(8, 4.5);
+    // 将面板整体抬高一些，方便相机从正前方看时不被起点方块挡住
+    panel.position.set(0, 4.0, -10);
     this.uiRoot3D.add(panel);
 
     // 标题使用简单的 Sprite 文本（先用 DOM 文本代替）
@@ -155,22 +188,33 @@ export class UIManager {
     titleDiv.innerText = "Ultimate Chicken Horse 3D";
     this.uiLayer.appendChild(titleDiv);
 
-    const nickname = "Player" + Math.floor(Math.random() * 1000);
+    let nickname = "Player" + Math.floor(Math.random() * 1000);
+
+    // 简单昵称输入：点击标题面板上方的一条提示条弹出 prompt
+    const nameHint = document.createElement("div");
+    nameHint.className = "ui-name-hint ui-element";
+    nameHint.innerText = `Nickname: ${nickname} (click to edit)`;
+    nameHint.onclick = () => {
+      const next = window.prompt("Enter your nickname", nickname) || nickname;
+      nickname = next.trim() || nickname;
+      nameHint.innerText = `Nickname: ${nickname} (click to edit)`;
+    };
+    this.uiLayer.appendChild(nameHint);
 
     // Host 按钮
-    const hostBtn = this.createButtonPlane(2.2, 0.7, "HOST", () => {
+    const hostBtn = this.createButtonPlane(2.4, 0.9, "HOST", () => {
       onHost(nickname);
     });
-    hostBtn.position.set(-1.5, 1.5, -4.9);
+    hostBtn.position.set(-2.4, 3.3, -9.9);
     this.uiRoot3D.add(hostBtn);
 
     // Join 按钮（点击后用简单 prompt 输入 HostId）
-    const joinBtn = this.createButtonPlane(2.2, 0.7, "JOIN", () => {
+    const joinBtn = this.createButtonPlane(2.4, 0.9, "JOIN", () => {
       const hostId = window.prompt("Enter Host ID:", "") || "";
       if (!hostId) return;
       onJoin(nickname, hostId);
     });
-    joinBtn.position.set(1.5, 1.5, -4.9);
+    joinBtn.position.set(2.4, 3.3, -9.9);
     this.uiRoot3D.add(joinBtn);
   }
 
@@ -194,42 +238,64 @@ export class UIManager {
 
     this.uiRoot3D.clear();
 
-    const panel = this.createPanel(7, 4);
-    panel.position.set(0, 1.8, -5);
+    const panel = this.createPanel(8, 4.5);
+    // Lobby 面板同样整体抬高
+    panel.position.set(0, 4.0, -10);
     this.uiRoot3D.add(panel);
 
-    // Host ID 区域：仍然使用 DOM 显示，方便复制
+    // Host ID 区域：使用木牌样式 + 复制按钮
     if (isHost) {
       const hostInfo = document.createElement("div");
-      hostInfo.className = "ui-host-info";
-      hostInfo.innerText = myId ? `Host ID: ${myId}` : "Connecting...";
+      hostInfo.className = "ui-host-info ui-element";
+
+      const idSpan = document.createElement("span");
+      idSpan.className = "ui-host-id-text";
+      idSpan.innerText = myId ? `Host ID: ${myId}` : "Connecting...";
+      hostInfo.appendChild(idSpan);
+
       const copyBtn = document.createElement("button");
-      copyBtn.innerText = "Copy ID";
-      copyBtn.onclick = () => {
+      copyBtn.className = "ui-host-copy";
+      copyBtn.innerText = "Copy";
+      copyBtn.onclick = async () => {
         if (!myId) return;
-        navigator.clipboard.writeText(myId);
+        try {
+          await navigator.clipboard.writeText(myId);
+          copyBtn.innerText = "Copied";
+          setTimeout(() => (copyBtn.innerText = "Copy"), 1500);
+        } catch {
+          copyBtn.innerText = "Failed";
+          setTimeout(() => (copyBtn.innerText = "Copy"), 1500);
+        }
       };
       hostInfo.appendChild(copyBtn);
+
       this.uiLayer.appendChild(hostInfo);
     }
 
     // 角色选择：简单 3D 按钮条
     const chars = ["chicken", "penguin", "robot"];
-    const spacing = 2.2;
+    const me = players.find((p) => p.id === myId);
+    const currentChar = me ? me.character : "";
+    const spacing = 2.6;
     chars.forEach((charId, index) => {
       const btn = this.createButtonPlane(1.8, 0.7, charId.toUpperCase(), () => {
         onCharacterSelect(charId);
       });
-      btn.position.set(-spacing + index * spacing, 1.6, -4.9);
+      // 如果是当前选中的角色，放大并稍微抬高，形成选中反馈
+      if (charId === currentChar) {
+        btn.scale.set(1.15, 1.15, 1);
+        btn.position.y += 0.12;
+      }
+      btn.position.set(-spacing + index * spacing, 3.4, -9.9);
       this.uiRoot3D.add(btn);
     });
 
     // Start / Waiting 区域
     if (isHost) {
-      const startBtn = this.createButtonPlane(2.5, 0.8, "START", () => {
+      const startBtn = this.createButtonPlane(2.5, 0.9, "START", () => {
         onStart();
       });
-      startBtn.position.set(0, 0.7, -4.9);
+      startBtn.position.set(0, 2.3, -9.9);
       this.uiRoot3D.add(startBtn);
     } else {
       const waitDiv = document.createElement("div");
