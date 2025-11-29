@@ -83,84 +83,105 @@ export class Game {
     // Let's use index in partyBoxItems array for simplicity.
 
     constructor() {
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.getElementById('game-container')?.appendChild(this.renderer.domElement);
+      this.scene = new THREE.Scene();
+      this.camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      this.renderer = new THREE.WebGLRenderer({ antialias: true });
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document
+        .getElementById("game-container")
+        ?.appendChild(this.renderer.domElement);
 
-        this.physicsWorld = new PhysicsWorld();
-        this.networkManager = new NetworkManager();
-        this.resources = new Resources();
-        this.uiManager = new UIManager();
-        this.inputManager = new InputManager();
-        this.loop = new Loop(this.update.bind(this));
+      this.physicsWorld = new PhysicsWorld();
+      this.networkManager = new NetworkManager();
+      this.resources = new Resources();
+      this.uiManager = new UIManager();
+      this.inputManager = new InputManager();
+      this.loop = new Loop(this.update.bind(this));
 
-        // Build Grid Highlight (Column)
-        this.gridHighlight = new THREE.Mesh(
-            new THREE.BoxGeometry(1, 20, 1), // Tall column
-            new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.2 })
-        );
-        this.gridHighlight.position.y = 10; // Center at y=10 so it covers 0-20
-        this.scene.add(this.gridHighlight);
-        this.gridHighlight.visible = false;
+      // 将 3D 场景引用传给 UI 管理器，用于 3D UI 面板
+      this.uiManager.attachScene(this.scene, this.camera, this.raycaster);
 
-        // Grid Helper
-        this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
-        this.gridHelper.position.y = 0.01; // Slightly above ground
-        this.scene.add(this.gridHelper);
-        this.gridHelper.visible = false;
+      // Build Grid Highlight (Column)
+      this.gridHighlight = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 20, 1), // Tall column
+        new THREE.MeshBasicMaterial({
+          color: 0x00ff00,
+          transparent: true,
+          opacity: 0.2,
+        })
+      );
+      this.gridHighlight.position.y = 10; // Center at y=10 so it covers 0-20
+      this.scene.add(this.gridHighlight);
+      this.gridHighlight.visible = false;
 
-        // Party Box Root
-        this.scene.add(this.partyBoxRoot);
-        this.partyBoxRoot.visible = false;
+      // Grid Helper
+      this.gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
+      this.gridHelper.position.y = 0.01; // Slightly above ground
+      this.scene.add(this.gridHelper);
+      this.gridHelper.visible = false;
 
-        // Load resources
-        this.resources.loadDefaultPlaceholders();
+      // Party Box Root
+      this.scene.add(this.partyBoxRoot);
+      this.partyBoxRoot.visible = false;
 
-        // Wait for resources to load before initializing
-        this.resources.onReady(() => {
-            // Ensure character models exist (using placeholders for now if not replaced)
-            ['chicken', 'penguin', 'robot'].forEach(charId => {
-                if (!this.resources.models.has(charId)) {
-                    const group = new THREE.Group();
-                    // Simple placeholder: Sphere + Cone (Beak)
-                    const bodyGeo = new THREE.SphereGeometry(0.4, 16, 16);
-                    const bodyMat = new THREE.MeshStandardMaterial({ color: charId === 'chicken' ? 0xffffff : (charId === 'penguin' ? 0x000000 : 0x888888) });
-                    const body = new THREE.Mesh(bodyGeo, bodyMat);
-                    body.position.y = 0.4;
-                    group.add(body);
-    
-                    const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
-                    const head = new THREE.Mesh(headGeo, bodyMat);
-                    head.position.y = 0.9;
-                    group.add(head);
-    
-                    const beakGeo = new THREE.ConeGeometry(0.05, 0.1, 8);
-                    const beakMat = new THREE.MeshStandardMaterial({ color: 0xffa500 });
-                    const beak = new THREE.Mesh(beakGeo, beakMat);
-                    beak.position.set(0, 0.9, 0.2);
-                    beak.rotation.x = Math.PI / 2;
-                    group.add(beak);
-    
-                    this.resources.models.set(charId, group);
-                }
+      // Load resources
+      this.resources.loadDefaultPlaceholders();
+
+      // Wait for resources to load before initializing
+      this.resources.onReady(() => {
+        // Ensure character models exist (using placeholders for now if not replaced)
+        ["chicken", "penguin", "robot"].forEach((charId) => {
+          if (!this.resources.models.has(charId)) {
+            const group = new THREE.Group();
+            // Simple placeholder: Sphere + Cone (Beak)
+            const bodyGeo = new THREE.SphereGeometry(0.4, 16, 16);
+            const bodyMat = new THREE.MeshStandardMaterial({
+              color:
+                charId === "chicken"
+                  ? 0xffffff
+                  : charId === "penguin"
+                  ? 0x000000
+                  : 0x888888,
             });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.4;
+            group.add(body);
 
-            this.init();
-            this.setupEvents();
-            this.setupNetworkHandlers();
-            this.setState(GameState.TITLE);
+            const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
+            const head = new THREE.Mesh(headGeo, bodyMat);
+            head.position.y = 0.9;
+            group.add(head);
+
+            const beakGeo = new THREE.ConeGeometry(0.05, 0.1, 8);
+            const beakMat = new THREE.MeshStandardMaterial({ color: 0xffa500 });
+            const beak = new THREE.Mesh(beakGeo, beakMat);
+            beak.position.set(0, 0.9, 0.2);
+            beak.rotation.x = Math.PI / 2;
+            group.add(beak);
+
+            this.resources.models.set(charId, group);
+          }
         });
 
-        // Handle Window Resize
-        window.addEventListener('resize', () => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        this.init();
+        this.setupEvents();
+        this.setupNetworkHandlers();
+        this.setState(GameState.TITLE);
+      });
+
+      // Handle Window Resize
+      window.addEventListener("resize", () => {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+      });
     }
 
     private setupNetworkHandlers() {
@@ -477,82 +498,117 @@ export class Game {
 
     private setupEvents() {
         window.addEventListener('mousemove', (event) => {
-            // Update mouse coordinates for Raycasting
-            this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            
-            if (this.state === GameState.BUILD_VIEW) {
-                // Rotate Camera with Mouse X
-                this.buildCameraAngle -= event.movementX * 0.005;
-                const radius = 25;
-                this.camera.position.x = Math.sin(this.buildCameraAngle) * radius;
-                this.camera.position.z = Math.cos(this.buildCameraAngle) * radius;
-                this.camera.lookAt(0, 0, 0);
-            } else if (this.state === GameState.RUN && this.playersFinishedTurn.has(this.networkManager.getMyId())) {
-                // Spectator Free Look (Drag to rotate)
-                if (event.buttons === 1 || event.buttons === 2) {
-                    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-                    euler.setFromQuaternion(this.camera.quaternion);
-                    euler.y -= event.movementX * 0.002;
-                    euler.x -= event.movementY * 0.002;
-                    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
-                    this.camera.quaternion.setFromEuler(euler);
-                }
-            } else if (this.state === GameState.BUILD_PLACE) {
-                this.updateGhostPositionFromMouse();
+          // 更新 3D UI 的鼠标坐标
+          this.uiManager.updatePointerFromMouse(
+            event.clientX,
+            event.clientY,
+            window.innerWidth,
+            window.innerHeight
+          );
+          // Update mouse coordinates for Raycasting
+          this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-                if (this.ghostObject && this.selectedItem) {
-                    // Bomb Range Indicator
-                    if (this.selectedItem === 'bomb') {
-                        if (!this.bombRangeIndicator) {
-                            this.bombRangeIndicator = new THREE.Mesh(
-                                new THREE.SphereGeometry(3, 16, 16),
-                                new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.3, wireframe: true })
-                            );
-                            this.scene.add(this.bombRangeIndicator);
-                        }
-                        this.bombRangeIndicator.position.copy(this.ghostObject.position);
-                        this.bombRangeIndicator.visible = true;
-
-                        // Highlight targets
-                        // Restore old highlights
-                        this.highlightedMeshes.forEach((color, mesh) => {
-                            if ((mesh.material as any).color) (mesh.material as any).color.setHex(color);
-                        });
-                        this.highlightedMeshes.clear();
-
-                        // Find new targets
-                        const range = 3;
-                        this.physicsWorld.world.bodies.forEach(b => {
-                            if (b.position.distanceTo(new CANNON.Vec3(this.ghostObject!.position.x, this.ghostObject!.position.y, this.ghostObject!.position.z)) < range) {
-                                const userData = (b as any).userData;
-                                if (userData && userData.tag !== 'ground' && userData.tag !== 'player' && userData.tag !== 'goal') {
-                                    const mesh = (b as any).meshReference as THREE.Mesh; // We attached meshReference in placeObject
-                                    if (mesh) {
-                                        // Traverse if group
-                                        mesh.traverse((child) => {
-                                            if (child instanceof THREE.Mesh) {
-                                                if (!this.highlightedMeshes.has(child)) {
-                                                    this.highlightedMeshes.set(child, (child.material as any).color.getHex());
-                                                    (child.material as any).color.setHex(0xff0000);
-                                                }
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                        });
-
-                    } else {
-                        if (this.bombRangeIndicator) this.bombRangeIndicator.visible = false;
-                        // Clear highlights
-                        this.highlightedMeshes.forEach((color, mesh) => {
-                            if ((mesh.material as any).color) (mesh.material as any).color.setHex(color);
-                        });
-                        this.highlightedMeshes.clear();
-                    }
-                }
+          if (this.state === GameState.BUILD_VIEW) {
+            // Rotate Camera with Mouse X
+            this.buildCameraAngle -= event.movementX * 0.005;
+            const radius = 25;
+            this.camera.position.x = Math.sin(this.buildCameraAngle) * radius;
+            this.camera.position.z = Math.cos(this.buildCameraAngle) * radius;
+            this.camera.lookAt(0, 0, 0);
+          } else if (
+            this.state === GameState.RUN &&
+            this.playersFinishedTurn.has(this.networkManager.getMyId())
+          ) {
+            // Spectator Free Look (Drag to rotate)
+            if (event.buttons === 1 || event.buttons === 2) {
+              const euler = new THREE.Euler(0, 0, 0, "YXZ");
+              euler.setFromQuaternion(this.camera.quaternion);
+              euler.y -= event.movementX * 0.002;
+              euler.x -= event.movementY * 0.002;
+              euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+              this.camera.quaternion.setFromEuler(euler);
             }
+          } else if (this.state === GameState.BUILD_PLACE) {
+            this.updateGhostPositionFromMouse();
+
+            if (this.ghostObject && this.selectedItem) {
+              // Bomb Range Indicator
+              if (this.selectedItem === "bomb") {
+                if (!this.bombRangeIndicator) {
+                  this.bombRangeIndicator = new THREE.Mesh(
+                    new THREE.SphereGeometry(3, 16, 16),
+                    new THREE.MeshBasicMaterial({
+                      color: 0xff0000,
+                      transparent: true,
+                      opacity: 0.3,
+                      wireframe: true,
+                    })
+                  );
+                  this.scene.add(this.bombRangeIndicator);
+                }
+                this.bombRangeIndicator.position.copy(
+                  this.ghostObject.position
+                );
+                this.bombRangeIndicator.visible = true;
+
+                // Highlight targets
+                // Restore old highlights
+                this.highlightedMeshes.forEach((color, mesh) => {
+                  if ((mesh.material as any).color)
+                    (mesh.material as any).color.setHex(color);
+                });
+                this.highlightedMeshes.clear();
+
+                // Find new targets
+                const range = 3;
+                this.physicsWorld.world.bodies.forEach((b) => {
+                  if (
+                    b.position.distanceTo(
+                      new CANNON.Vec3(
+                        this.ghostObject!.position.x,
+                        this.ghostObject!.position.y,
+                        this.ghostObject!.position.z
+                      )
+                    ) < range
+                  ) {
+                    const userData = (b as any).userData;
+                    if (
+                      userData &&
+                      userData.tag !== "ground" &&
+                      userData.tag !== "player" &&
+                      userData.tag !== "goal"
+                    ) {
+                      const mesh = (b as any).meshReference as THREE.Mesh; // We attached meshReference in placeObject
+                      if (mesh) {
+                        // Traverse if group
+                        mesh.traverse((child) => {
+                          if (child instanceof THREE.Mesh) {
+                            if (!this.highlightedMeshes.has(child)) {
+                              this.highlightedMeshes.set(
+                                child,
+                                (child.material as any).color.getHex()
+                              );
+                              (child.material as any).color.setHex(0xff0000);
+                            }
+                          }
+                        });
+                      }
+                    }
+                  }
+                });
+              } else {
+                if (this.bombRangeIndicator)
+                  this.bombRangeIndicator.visible = false;
+                // Clear highlights
+                this.highlightedMeshes.forEach((color, mesh) => {
+                  if ((mesh.material as any).color)
+                    (mesh.material as any).color.setHex(color);
+                });
+                this.highlightedMeshes.clear();
+              }
+            }
+          }
         });
 
         window.addEventListener('wheel', (event) => {
@@ -589,90 +645,111 @@ export class Game {
             }
         });
 
-        window.addEventListener('click', () => {
-            if (this.state === GameState.PICK) {
-                // Raycast for Party Box Items
-                this.raycaster.setFromCamera(this.mouse, this.camera);
-                const intersects = this.raycaster.intersectObjects(this.partyBoxItems, true);
-                
-                if (intersects.length > 0) {
-                    // Find the root group of the clicked item
-                    let target = intersects[0].object;
-                    while(target.parent && !target.userData.itemId) {
-                        target = target.parent;
-                    }
-                    
-                    if (target.userData.itemId) {
-                        // Request Pick
-                        // Find index
-                        const index = this.partyBoxItems.indexOf(target as THREE.Group);
-                        if (index !== -1) {
-                            if (this.networkManager.isHostUser()) {
-                                // Host processes directly
-                                this.processPickRequest(index, this.networkManager.getMyId());
-                            } else {
-                                // Client sends request
-                                this.networkManager.send({
-                                    t: PacketType.PICK_ITEM,
-                                    p: { index: index }
-                                }); // Broadcasts to host
-                            }
-                        }
-                    }
+        window.addEventListener("click", (event) => {
+          // 优先让 3D UI 处理点击
+          const consumed = this.uiManager.handleClick();
+          if (consumed) return;
+
+          if (this.state === GameState.PICK) {
+            // Raycast for Party Box Items
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObjects(
+              this.partyBoxItems,
+              true
+            );
+
+            if (intersects.length > 0) {
+              // Find the root group of the clicked item
+              let target = intersects[0].object;
+              while (target.parent && !target.userData.itemId) {
+                target = target.parent;
+              }
+
+              if (target.userData.itemId) {
+                // Request Pick
+                // Find index
+                const index = this.partyBoxItems.indexOf(target as THREE.Group);
+                if (index !== -1) {
+                  if (this.networkManager.isHostUser()) {
+                    // Host processes directly
+                    this.processPickRequest(
+                      index,
+                      this.networkManager.getMyId()
+                    );
+                  } else {
+                    // Client sends request
+                    this.networkManager.send({
+                      t: PacketType.PICK_ITEM,
+                      p: { index: index },
+                    }); // Broadcasts to host
+                  }
                 }
-            } else if (this.state === GameState.BUILD_VIEW) {
-                // Confirm View, move to Place
-                this.setState(GameState.BUILD_PLACE);
-            } else if (this.state === GameState.BUILD_PLACE) {
-                // Confirm Placement
-                if (this.ghostObject && this.selectedItem) {
-                    // Validate Placement for Surfaces
-                    if (this.isValidPlacement(this.selectedItem, this.ghostObject.position)) {
-                        this.placeObject(this.selectedItem, this.ghostObject.position, this.buildRotation);
-                        
-                        // Track Turn
-                        this.playersFinishedTurn.add(this.networkManager.getMyId());
-
-                        // Send Network Event
-                        this.networkManager.send({
-                            t: PacketType.EVENT_PLACE,
-                            p: {
-                                itemId: this.selectedItem,
-                                pos: { 
-                                    x: this.ghostObject.position.x, 
-                                    y: this.ghostObject.position.y, 
-                                    z: this.ghostObject.position.z 
-                                },
-                                rot: this.buildRotation,
-                                playerId: this.networkManager.getMyId()
-                            }
-                        });
-
-                        // Check if everyone finished
-                        this.checkAllPlayersFinished();
-                        
-                        // If not finished, maybe show "Waiting for others..."
-                        // Note: state might have changed to COUNTDOWN inside checkAllPlayersFinished
-                        if (this.state === GameState.BUILD_PLACE) {
-                            this.uiManager.showMessage("Waiting for other players...");
-                            // Hide ghost
-                            if (this.ghostObject) {
-                                this.scene.remove(this.ghostObject);
-                                this.ghostObject = null;
-                            }
-                            // Hide highlight
-                            this.gridHighlight.visible = false;
-                        }
-
-                    } else {
-                        this.uiManager.showMessage("Invalid Placement!");
-                    }
-                }
-            } else if (this.state === GameState.RUN || this.state === GameState.COUNTDOWN) {
-                // Request pointer lock for camera control
-                document.body.requestPointerLock();
+              }
             }
-            // Note: SCORE state transition is handled by UIManager callback, not by click event
+          } else if (this.state === GameState.BUILD_VIEW) {
+            // Confirm View, move to Place
+            this.setState(GameState.BUILD_PLACE);
+          } else if (this.state === GameState.BUILD_PLACE) {
+            // Confirm Placement
+            if (this.ghostObject && this.selectedItem) {
+              // Validate Placement for Surfaces
+              if (
+                this.isValidPlacement(
+                  this.selectedItem,
+                  this.ghostObject.position
+                )
+              ) {
+                this.placeObject(
+                  this.selectedItem,
+                  this.ghostObject.position,
+                  this.buildRotation
+                );
+
+                // Track Turn
+                this.playersFinishedTurn.add(this.networkManager.getMyId());
+
+                // Send Network Event
+                this.networkManager.send({
+                  t: PacketType.EVENT_PLACE,
+                  p: {
+                    itemId: this.selectedItem,
+                    pos: {
+                      x: this.ghostObject.position.x,
+                      y: this.ghostObject.position.y,
+                      z: this.ghostObject.position.z,
+                    },
+                    rot: this.buildRotation,
+                    playerId: this.networkManager.getMyId(),
+                  },
+                });
+
+                // Check if everyone finished
+                this.checkAllPlayersFinished();
+
+                // If not finished, maybe show "Waiting for others..."
+                // Note: state might have changed to COUNTDOWN inside checkAllPlayersFinished
+                if (this.state === GameState.BUILD_PLACE) {
+                  this.uiManager.showMessage("Waiting for other players...");
+                  // Hide ghost
+                  if (this.ghostObject) {
+                    this.scene.remove(this.ghostObject);
+                    this.ghostObject = null;
+                  }
+                  // Hide highlight
+                  this.gridHighlight.visible = false;
+                }
+              } else {
+                this.uiManager.showMessage("Invalid Placement!");
+              }
+            }
+          } else if (
+            this.state === GameState.RUN ||
+            this.state === GameState.COUNTDOWN
+          ) {
+            // Request pointer lock for camera control
+            document.body.requestPointerLock();
+          }
+          // Note: SCORE state transition is handled by UIManager callback, not by click event
         });
     }
 
