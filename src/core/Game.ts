@@ -1413,6 +1413,11 @@ export class Game {
   private update() {
     this.physicsWorld.step(1 / 60);
 
+    // Sync Players FIRST (so rig is at correct position for camera)
+    this.players.forEach((player) => {
+      player.update(1 / 60);
+    });
+
     // Camera tween（只影响位置，不改朝向）
     if (this.cameraLerpActive) {
       this.cameraLerpT += 1 / 60;
@@ -1530,7 +1535,8 @@ export class Game {
           localPlayer.setInput(input, this.cameraAngleY);
 
           // 3. Update Camera Position (Orbit around player)
-          const targetPos = localPlayer.body.position.clone() as any;
+          const targetPos = new THREE.Vector3();
+          localPlayer.rig.root.getWorldPosition(targetPos);
           targetPos.y += 1.5; // Look at head height
 
           const offsetX =
@@ -1637,10 +1643,6 @@ export class Game {
         });
       }
     }
-
-    this.players.forEach((player) => {
-      player.update(1 / 60);
-    });
 
     this.renderer.render(this.scene, this.camera);
   }
