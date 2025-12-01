@@ -1,99 +1,137 @@
-这是一个非常典型且隐蔽的 3D 开发陷阱，通常由 **“坐标系层级（Hierarchy）”** 引起的。
+既然你已经有了静态的 `.glb` 人物模型（即使是 AI 生成的），最快、最行业标准的做法是使用 **Mixamo (Adobe)** 进行“自动绑定骨骼”和“套用动画”。
 
-当你的代码从追踪 `Character`（通常是整个模型容器）变成追踪 `CharacterRig`（骨架/Armature）时，**相机读到的坐标变了**。
+对于你的问题：**“一个 .glb 够吗？”**
+答案是：**够的。** 最完美的状态是把“模型”和“所有动作（跑、跳、死）”都打包进同一个 `.glb` 文件里。
 
-最可能的原因有以下 3 点，按可能性从高到低排序：
-
----
-
-### 原因一：你在追踪“局部坐标”而非“世界坐标” (最常见)
-
-**现象分析：**
-*   当你加载 `.glb` 时，Three.js 通常会返回一个 `gltf.scene`（我们称之为 **Root**）。
-*   `CharacterRig` (Armature) 通常是这个 **Root** 的**子物体**。
-*   **你的移动逻辑**（比如 WASD 控制或者物理引擎同步）通常是修改 **Root** 的 `position`。
-*   **Root** 在世界中移动了，但作为子物体的 **CharacterRig** 相对于父亲（Root）的位置一直是 `(0, 0, 0)`。
-
-**结果：** 既然 `CharacterRig.position` 一直是 `(0,0,0)`，相机自然就卡在原点不动了。
-
-**✅ 解决方案：使用 `getWorldPosition`**
-
-不要直接读取 `.position`，而是强制获取它在世界中的绝对位置。
-
-```typescript
-// 修改相机跟随逻辑
-
-// ❌ 错误：这读取的是相对于父物体的局部坐标
-// camera.lookAt(characterRig.position);
-// camera.position.x = characterRig.position.x + offset;
-
-// ✅ 正确：创建一个临时向量，获取世界坐标
-const targetPos = new THREE.Vector3();
-characterRig.getWorldPosition(targetPos); // <--- 关键！
-
-camera.position.x = targetPos.x + offset.x;
-camera.position.y = targetPos.y + offset.y;
-camera.position.z = targetPos.z + offset.z;
-camera.lookAt(targetPos);
-```
+以下是实现这一步的 **“30分钟速通流”**：
 
 ---
 
-### 原因二：物理同步对象搞错了
+### 第一阶段：自动绑骨 (Auto-Rigging)
 
-**现象分析：**
-你使用了 Cannon-es 物理引擎。
-*   之前：你把物理刚体 (`body.position`) 同步给了 `Character`。
-*   现在：你可能还在把物理刚体同步给 `Character`，但相机却在看 `CharacterRig`。
-*   或者：你试图把物理刚体同步给 `CharacterRig`，但因为 Rig 是被包含在 Root 里的，导致双重变换或者层级冲突。
+你的模型现在只是一个“雕像”，我们需要给它塞一副骨架，让它变成“木偶”。
 
-**✅ 解决方案：回归“容器”逻辑**
+1.  **格式转换：** Mixamo 对 `.fbx` 或 `.obj` 支持最好。
+    *   如果你的 AI 生成的是 `.glb`，建议先扔进 Blender，然后导出为 **`.fbx`**。
+2.  **上传 Mixamo：**
+    *   访问 [Mixamo.com](https://www.mixamo.com) (需要 Adobe 账号，免费)。
+    *   点击右侧 **Upload Character**，把你的 `.fbx` 拖进去。
+3.  **放置标记点：**
+    *   Mixamo 会让你确认模型的朝向。
+    *   然后让你把圆圈拖到角色的：**下巴 (Chin)、手腕 (Wrists)、手肘 (Elbows)、膝盖 (Knees)、腹股沟 (Groin)**。
+    *   *注意：如果你的角色是那种奇怪的卡通生物（比如没有脖子），尽量凭感觉对齐大概位置。*
+4.  **生成：** 点击 Next，等待几分钟。如果成功，你会看到你的角色在动了！
 
-在游戏开发中，最佳实践是：
-1.  **物理控制：** `PlayerContainer` (最外层的 Group)。
-2.  **视觉展示：** `CharacterRig` (里面的骨架)。
-3.  **相机跟随：** 跟随 **物理刚体 (Physics Body)** 或者 **最外层的容器**，而**不是**里面的骨架。
+---
+
+### 第二阶段：下载动画 (Shopping)
+
+现在你的角色已经是“活”的了。你需要“进货”所需的动作。
+
+**关键策略：** 我们需要下载多次，最后合并。
+
+1.  **下载 1：本体 (T-Pose)**
+    *   不要选任何动作，让角色保持 T-Pose 或初始站姿。
+    *   点击 **Download**。
+    *   **Skin:** 选择 **With Skin** (带蒙皮/模型)。
+    *   文件名建议：`Character_Mesh.fbx`。
+
+2.  **下载 2, 3, 4...：各种动作**
+    *   在左侧搜索动作，比如 `Run`, `Jump`, `Idle` (待机), `Die`。
+    *   **⚠️ 核心注意点：** 
+        *   对于 **Run (奔跑)** 和 **Walk (行走)**，务必勾选右侧参数栏里的 **"In Place" (原地)**！
+        *   *原因：你的游戏逻辑会控制位置移动。如果动画本身也往前跑，角色就会“滑步”或者跑出碰撞箱。*
+    *   点击 **Download**。
+    *   **Skin:** 选择 **Without Skin** (不带模型，只带骨骼数据)。这样文件极小，且容易合并。
+    *   文件名建议：`Anim_Run.fbx`, `Anim_Jump.fbx`。
+
+---
+
+### 第三阶段：合并到一个 .glb (Blender 操作)
+
+现在你手头有一堆 `.fbx`，我们要把它们缝合进一个 `.glb` 里。
+
+1.  **导入本体：**
+    *   打开 Blender (新文件，删掉默认方块)。
+    *   `File -> Import -> FBX`，导入 `Character_Mesh.fbx`。
+    *   *此时场景里有模型和一套骨骼。*
+
+2.  **导入动作：**
+    *   `File -> Import -> FBX`，导入 `Anim_Run.fbx`。
+    *   *你会发现场景里多了一套只有骨头的骨架在傻跑。别担心。*
+
+3.  **动作重命名与“下推” (核心步骤)：**
+    *   切换到底部的 **“动画摄影表 (Dope Sheet)”**，把模式从 Dope Sheet 切换为 **“动作编辑器 (Action Editor)”**。
+    *   选中你**原本的那个角色骨骼**。
+    *   在 Action Editor 中间的下拉菜单里，选择刚才导入的动作（名字可能很乱，比如 `Armature.001|mixamo.com|Layer0`）。
+    *   **重命名：** 把这个动作的名字改成简单的 **`Run`**。
+    *   **下推 (Push Down)：** 点击动作名字旁边的 **“盾牌图标 (Fake User)”** (保存在文件里)，然后点击 **“下推 (Push Down)”** 按钮（或者在 NLA 编辑器里做）。
+        *   *简单来说：只要你给动作改了名，并且点了盾牌，Blender 就会记住它。*
+
+4.  **重复步骤 2-3：** 把 Jump, Idle, Die 都导入，改名，点盾牌。
+
+5.  **清理多余骨架：**
+    *   导入动作时产生的那些多余的“纯骨架”物体，可以删掉。只要动作数据留在了内存里（点了盾牌）就行。
+
+6.  **导出终极 .glb：**
+    *   选中你的角色模型和骨骼。
+    *   `File -> Export -> glTF 2.0`。
+    *   **设置：**
+        *   Include: Selected Objects
+        *   Animation: 勾选 **Animation** (默认是勾的)。
+        *   Animation: 展开，把 **"Group by NLA Track"** 取消勾选（有时勾选会导致只导出一个动作，不勾选反而会导出所有带盾牌的 Action）。*或者确保所有动作都在 NLA 轨道上也行，但最稳妥的是确保动作库里有这些名字。*
+
+---
+
+### 第四阶段：代码调用 (Three.js)
+
+现在你只有一个 `character.glb`，里面却包含了所有绝世武功。
 
 ```typescript
-// 推荐的结构
-class Player {
-    root: THREE.Group; // gltf.scene (最外层)
-    rig: THREE.Object3D; // Armature (里面的骨架，用于播动画)
-    body: CANNON.Body; // 物理刚体
+// src/objects/Player.ts
 
-    update() {
-        // 1. 物理位置赋给最外层容器
-        this.root.position.copy(this.body.position);
-        this.root.quaternion.copy(this.body.quaternion);
+loader.load('character.glb', (gltf) => {
+    const model = gltf.scene;
+    const animations = gltf.animations; // 这里是一个数组，包含 [Idle, Run, Jump...]
 
-        // 2. 相机跟随物理刚体 (最稳妥，甚至会有平滑插值)
-        // 或者跟随 this.root
-        cameraFollow(this.body.position); 
+    this.mixer = new THREE.AnimationMixer(model);
+
+    // 建立动作字典，方便调用
+    this.actions = {};
+    
+    animations.forEach((clip) => {
+        // clip.name 就是你在 Blender 里改的 "Run", "Jump"
+        const action = this.mixer.clipAction(clip);
+        this.actions[clip.name] = action;
+    });
+
+    // 播放待机
+    this.actions['Idle'].play();
+    
+    scene.add(model);
+});
+
+// 切换动作的函数
+fadeToAction(name: string, duration: number) {
+    const previousAction = this.activeAction;
+    const activeAction = this.actions[name];
+
+    if (previousAction !== activeAction) {
+        previousAction.fadeOut(duration);
+        activeAction
+            .reset()
+            .setEffectiveTimeScale(1)
+            .setEffectiveWeight(1)
+            .fadeIn(duration)
+            .play();
+        this.activeAction = activeAction;
     }
 }
 ```
 
----
+### 总结
 
-### 原因三：Mixamo 的“根骨骼运动” (Root Motion) 问题
-
-**现象分析：**
-有些 Mixamo 动画（特别是没勾选 In Place 时），骨架会跑出去，但原点留在原地。或者反过来，骨架留在原地，原点跑了。
-
-如果你的相机跟随的是那个“被甩在后面”的原点，看起来就像相机坏了。
-
-**✅ 解决方案：**
-1.  确保在 Mixamo 下载 Run/Walk 动画时勾选了 **"In Place"**。
-2.  在 Blender 里检查：确保 `Armature` 的原点（那个橙色小点）是在角色脚下的，而不是在很远的地方。
-
----
-
-### 总结建议
-
-**不用纠结 Rig，直接改相机目标。**
-
-既然你的物理移动逻辑没有坏（角色还能跑，只是相机不跟），说明你的物理同步是对的。
-
-**请把相机跟随的目标改回 `player.body.position` (物理坐标) 或者 `player.mesh.position` (模型最外层坐标)。**
-
-不要让相机去追 `CharacterRig`，因为它是内部组件，它的坐标数据经常会骗人。
+1.  **Mixamo** 是永远的神，用来搞定骨骼和动作。
+2.  **下载策略：** 1个带皮的本体 + N个不带皮的动作 FBX。
+3.  **Blender 组装：** 导入 -> 重命名动作 -> 点盾牌保存 -> 导出单个 GLB。
+4.  **Three.js:** 解析 `gltf.animations` 数组即可。
