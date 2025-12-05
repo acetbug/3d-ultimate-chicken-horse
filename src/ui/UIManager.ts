@@ -40,7 +40,10 @@ export class UIManager {
     msgDiv.innerText = message;
     this.uiLayer.appendChild(msgDiv);
     setTimeout(() => {
-      this.uiLayer.removeChild(msgDiv);
+      // 元素有可能已经被 clearUI() 或其它逻辑移除，先检查一下再删，避免 NotFoundError
+      if (msgDiv.parentElement === this.uiLayer) {
+        this.uiLayer.removeChild(msgDiv);
+      }
     }, 3000);
   }
 
@@ -177,8 +180,8 @@ export class UIManager {
     this.uiRoot3D.clear();
 
     const panel = this.createPanel(8, 4.5);
-    // 将面板整体抬高一些，方便相机从正前方看时不被起点方块挡住
-    panel.position.set(0, 4.0, -10);
+    // 将面板放到关卡中间偏前的位置，配合相机朝 +Z 方向的视角
+    panel.position.set(0, 4.0, 10);
     this.uiRoot3D.add(panel);
 
     // 标题使用简单的 Sprite 文本（先用 DOM 文本代替）
@@ -204,7 +207,7 @@ export class UIManager {
     const hostBtn = this.createButtonPlane(2.4, 0.9, "HOST", () => {
       onHost(nickname);
     });
-    hostBtn.position.set(-2.4, 3.3, -9.9);
+    hostBtn.position.set(-2.4, 3.3, 10.1);
     this.uiRoot3D.add(hostBtn);
 
     // Join 按钮（点击后用简单 prompt 输入 HostId）
@@ -213,7 +216,7 @@ export class UIManager {
       if (!hostId) return;
       onJoin(nickname, hostId);
     });
-    joinBtn.position.set(2.4, 3.3, -9.9);
+    joinBtn.position.set(2.4, 3.3, 10.1);
     this.uiRoot3D.add(joinBtn);
   }
 
@@ -238,8 +241,8 @@ export class UIManager {
     this.uiRoot3D.clear();
 
     const panel = this.createPanel(8, 4.5);
-    // Lobby 面板同样整体抬高
-    panel.position.set(0, 4.0, -10);
+    // Lobby 面板与标题共用同一空间，位于关卡中部偏前
+    panel.position.set(0, 4.0, 10);
     this.uiRoot3D.add(panel);
 
     // Host ID 区域：使用木牌样式 + 复制按钮
@@ -271,8 +274,16 @@ export class UIManager {
       this.uiLayer.appendChild(hostInfo);
     }
 
-    // 角色选择：简单 3D 按钮条
-    const chars = ["chicken", "penguin", "robot"];
+    // 角色选择：简单 3D 按钮条（与 CharacterRegistry 中保持一致）
+    const chars = [
+      "chicken",
+      "horse",
+      "lizard",
+      "monkey",
+      "rabbit",
+      "raccoon",
+      "sheep",
+    ];
     const me = players.find((p) => p.id === myId);
     const currentChar = me ? me.character : "";
     const spacing = 2.6;
@@ -285,7 +296,7 @@ export class UIManager {
         btn.scale.set(1.15, 1.15, 1);
         btn.position.y += 0.12;
       }
-      btn.position.set(-spacing + index * spacing, 3.4, -9.9);
+      btn.position.set(-spacing + index * spacing, 3.4, 10.1);
       this.uiRoot3D?.add(btn);
     });
 
@@ -294,7 +305,7 @@ export class UIManager {
       const startBtn = this.createButtonPlane(2.5, 0.9, "START", () => {
         onStart();
       });
-      startBtn.position.set(0, 2.3, -9.9);
+      startBtn.position.set(0, 2.3, 10.1);
       this.uiRoot3D?.add(startBtn);
     } else {
       const waitDiv = document.createElement("div");

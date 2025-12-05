@@ -23,24 +23,45 @@ export function convertToToon(object: THREE.Object3D) {
     object.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh;
-            // Check if the material is a StandardMaterial before casting
-            // If it's an array of materials, we might need to handle that, but for now assume single material or handle simple case
-            // The example code assumes MeshStandardMaterial.
-            
-            const oldMat = mesh.material as THREE.MeshStandardMaterial;
 
-            // 创建新的卡通材质
-            const newMat = new THREE.MeshToonMaterial({
-                color: oldMat.color,      // 继承 Blender 里的颜色
-                map: oldMat.map,          // 继承 Blender 里的贴图(那个调色板)
-                gradientMap: toonGradientMap, // 应用光影阶梯
-            });
+            try {
+              const originalMat = mesh.material as any;
 
-            mesh.material = newMat;
-            
-            // 开启阴影
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+              // 兼容数组材质和非标准材质
+              const firstMat = Array.isArray(originalMat)
+                ? originalMat[0]
+                : originalMat;
+
+              const baseColor =
+                firstMat && firstMat.color
+                  ? firstMat.color
+                  : new THREE.Color(0xffffff);
+              const baseMap = firstMat ? firstMat.map : undefined;
+
+              const newMat = new THREE.MeshToonMaterial({
+                color: baseColor,
+                map: baseMap,
+                gradientMap: toonGradientMap,
+              });
+
+              // 如果是 SkinnedMesh，一定要开启 skinning，否则骨骼动画不会驱动网格
+              if ((mesh as any).isSkinnedMesh) {
+                (newMat as any).skinning = true;
+                newMat.needsUpdate = true;
+              }
+
+              mesh.material = newMat;
+
+              // 开启阴影
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+            } catch (err) {
+              console.error(
+                "[ToonUtils] Failed to convert mesh to toon material",
+                err,
+                mesh
+              );
+            }
         }
     });
 }

@@ -16,6 +16,10 @@ export class Character {
     this.animState = state;
   }
 
+  public getAnimState(): CharacterAnimState {
+    return this.animState;
+  }
+
   public update(delta: number) {
     this.rig.updateFromBody(this.body);
     this.rig.updateAnimation(delta, this.animState);

@@ -98,7 +98,10 @@ export class Game {
   // Since items are objects, we need a unique ID for each spawned item instance.
   // Let's use index in partyBoxItems array for simplicity.
 
+  private firstUpdateLogged: boolean = false;
+
   constructor() {
+    console.log("[Game] constructor start");
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
       75,
@@ -110,6 +113,8 @@ export class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // 调试：把清屏颜色设成非常醒目的洋红色，方便确认 WebGL 画面是否真的在渲染
+    this.renderer.setClearColor(0xff00ff, 1);
     document
       .getElementById("game-container")
       ?.appendChild(this.renderer.domElement);
@@ -151,6 +156,7 @@ export class Game {
     this.resources.loadDefaultPlaceholders();
 
     this.resources.onReady(() => {
+      console.log("[Game] Resources ready, initializing game");
       this.init();
       this.setupEvents();
       this.setupNetworkHandlers();
@@ -392,6 +398,27 @@ export class Game {
         this.spawnRemotePlayer(p);
       }
     });
+
+    // Ensure my own character choice is applied (fallback to first if empty)
+    if (!this.myPlayerInfo.character || this.myPlayerInfo.character === "") {
+      const me = this.lobbyPlayers.find((pl) => pl.id === this.myPlayerInfo.id);
+      this.myPlayerInfo.character = me?.character || "chicken";
+    }
+
+    // Replace local player rig with chosen character
+    const local = this.players.get("local");
+    if (local) {
+      const appearance = getCharacterAppearance(this.myPlayerInfo.character);
+      const newRig = CharacterRig.createFromAppearance(
+        this.resources,
+        appearance
+      );
+
+      // Keep physics body but swap visual rig
+      this.scene.remove(local.rig.root);
+      this.scene.add(newRig.root);
+      local.rig = newRig;
+    }
 
     this.setState(GameState.PICK);
   }
@@ -848,8 +875,9 @@ export class Game {
     if (newState === GameState.TITLE) {
       // TITLE：相机正对抬高后的 UI 面板，距离适中
       this.cameraLerpActive = false;
-      this.camera.position.set(0, 4, 4);
-      this.camera.lookAt(0, 4, -10);
+      // 稍微远一点、略微俯视起点与 UI 木牌，让场景始终可见
+      this.camera.position.set(0, 10, 22);
+      this.camera.lookAt(0, 3, 10);
 
       this.uiManager.clearUI();
       document.exitPointerLock();
@@ -914,8 +942,8 @@ export class Game {
     } else if (newState === GameState.LOBBY) {
       // LOBBY：同样使用正对 UI 面板的视角
       this.cameraLerpActive = false;
-      this.camera.position.set(0, 4, 4);
-      this.camera.lookAt(0, 4, -10);
+      this.camera.position.set(0, 10, 22);
+      this.camera.lookAt(0, 3, 10);
 
       this.uiManager.clearUI();
       this.clearLevel(); // Ensure level is cleared when returning to lobby
@@ -1296,6 +1324,7 @@ export class Game {
   }
 
   private init() {
+    console.log("[Game] init() called");
     // Sky：改为轻微竖向渐变的卡通天空色（通过雾和环境色统一）
     this.scene.background = new THREE.Color(0x6fb1ff); // 稍深一点的卡通蓝
 
@@ -1419,6 +1448,7 @@ export class Game {
     // items.forEach((id) => { ... });
 
     // --- Player ---
+    // 使用占位外观创建本地玩家，真实角色会在进入游戏时根据 lobby 选择替换
     const appearance = getCharacterAppearance("chicken");
     const rig = CharacterRig.createFromAppearance(this.resources, appearance);
     this.scene.add(rig.root);
@@ -1439,9 +1469,14 @@ export class Game {
     this.players.set("local", player);
 
     this.loop.start();
+    console.log("[Game] loop.start() called");
   }
 
   private update() {
+    if (!this.firstUpdateLogged) {
+      this.firstUpdateLogged = true;
+      console.log("[Game] first update() frame");
+    }
     this.physicsWorld.step(1 / 60);
 
     // Update Crossbows
@@ -1674,7 +1709,7 @@ export class Game {
               localPlayer.body.quaternion.z,
               localPlayer.body.quaternion.w,
             ],
-            anim: "idle",
+            anim: localPlayer.getAnimState(),
           },
         });
       }

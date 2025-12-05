@@ -1,27 +1,34 @@
 import { CharacterAppearance } from "./CharacterAppearance";
 
-// Simple in-memory registry; can be expanded to support skins
+// id 将用于网络/选择，modelKey 必须与 Resources.loadDefaultPlaceholders 中的模型 key 对齐
 const CHARACTER_DEFINITIONS: CharacterAppearance[] = [
   {
     id: "chicken",
     modelKey: "chicken",
-    baseColor: 0xffffff,
-    beakColor: 0xffa500,
-    accentColor: 0xffcc66,
   },
   {
-    id: "penguin",
-    modelKey: "penguin",
-    baseColor: 0x000000,
-    beakColor: 0xffa500,
-    accentColor: 0xffcc66,
+    id: "horse",
+    modelKey: "horse",
   },
   {
-    id: "robot",
-    modelKey: "robot",
-    baseColor: 0x888888,
-    beakColor: 0xffffff,
-    accentColor: 0x00ffff,
+    id: "lizard",
+    modelKey: "lizard",
+  },
+  {
+    id: "monkey",
+    modelKey: "monkey",
+  },
+  {
+    id: "rabbit",
+    modelKey: "rabbit",
+  },
+  {
+    id: "raccoon",
+    modelKey: "raccoon",
+  },
+  {
+    id: "sheep",
+    modelKey: "sheep",
   },
 ];
 
@@ -35,7 +42,3 @@ export function getCharacterAppearance(
 export function listCharacterAppearances(): CharacterAppearance[] {
   return CHARACTER_DEFINITIONS.slice();
 }
-
-// TODO:
-// - Extend CHARACTER_DEFINITIONS with more skins / variants per id
-// - Potentially add a lookup by skinId if lobby needs skin selection
