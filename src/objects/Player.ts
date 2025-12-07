@@ -29,6 +29,7 @@ export class Player extends Character {
         const tag = contactBody.userData.tag;
         if (tag === "trap" || tag === "black_hole" || tag === "turret") {
           this.isDead = true;
+          this.animState = "dead";
           this.lastHitBy = contactBody.userData.owner; // Track killer
         } else if (tag === "goal") {
           this.hasWon = true;
@@ -127,7 +128,7 @@ export class Player extends Character {
         // Stop immediately (Honey or Ground)
         this.body.velocity.x = 0;
         this.body.velocity.z = 0;
-        this.body.quaternion.setFromEuler(0, cameraAngleY, 0);
+        // Keep the current rotation - don't face camera
         this.animState = "idle";
       }
     } else {

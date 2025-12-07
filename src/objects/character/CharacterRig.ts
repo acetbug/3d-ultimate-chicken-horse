@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Resources } from "../../core/Resources";
-import { CharacterAnimState, CharacterAppearance } from "./CharacterAppearance";
+import { CharacterAppearance, CharacterAnimState } from "./CharacterAppearance";
 
 interface SimpleRigNodes {
   root: THREE.Group;
@@ -19,16 +20,31 @@ export class CharacterRig {
   private readonly nodes: SimpleRigNodes;
   private time: number = 0;
 
-  private constructor(root: THREE.Group, nodes: SimpleRigNodes) {
+  // Animation Mixer support
+  private mixer: THREE.AnimationMixer | null = null;
+  private actions: Map<string, THREE.AnimationAction> = new Map();
+  private currentAction: THREE.AnimationAction | null = null;
+
+  private constructor(
+    root: THREE.Group,
+    nodes: SimpleRigNodes,
+    mixer: THREE.AnimationMixer | null = null,
+    actions: Map<string, THREE.AnimationAction> = new Map()
+  ) {
     this.root = root;
     this.nodes = nodes;
+    this.mixer = mixer;
+    this.actions = actions;
   }
 
   public static createFromAppearance(
     resources: Resources,
     appearance: CharacterAppearance
   ): CharacterRig {
-    const baseModel = resources.models.get(appearance.modelKey)?.clone();
+    const originalModel = resources.models.get(appearance.modelKey);
+    // Use SkeletonUtils.clone to properly clone skinned meshes with skeletons
+    const baseModel = originalModel ? SkeletonUtils.clone(originalModel) as THREE.Group : undefined;
+    const animations = resources.modelAnimations.get(appearance.modelKey);
 
     // Fallback: create a simple segmented placeholder chicken-like character
     const root = new THREE.Group();
@@ -47,7 +63,35 @@ export class CharacterRig {
       rightLeg: null,
     };
 
+    let mixer: THREE.AnimationMixer | null = null;
+    const actions = new Map<string, THREE.AnimationAction>();
+
     if (baseModel) {
+      // Setup Mixer if animations exist
+      if (animations && animations.length > 0) {
+        console.log(`[CharacterRig] Found ${animations.length} animations for ${appearance.modelKey}:`, animations.map(a => a.name));
+        mixer = new THREE.AnimationMixer(baseModel);
+        animations.forEach((clip) => {
+          // Normalize clip names to lower case for easier matching
+          const action = mixer!.clipAction(clip);
+          actions.set(clip.name.toLowerCase(), action);
+
+          // Also map common names if they match partially
+          if (clip.name.toLowerCase().includes("run"))
+            actions.set("run", action);
+          if (clip.name.toLowerCase().includes("walk"))
+            actions.set("walk", action);
+          if (clip.name.toLowerCase().includes("jump"))
+            actions.set("jump", action);
+          if (clip.name.toLowerCase().includes("idle"))
+            actions.set("idle", action);
+          if (clip.name.toLowerCase().includes("die") || clip.name.toLowerCase().includes("death"))
+            actions.set("death", action);
+        });
+      } else {
+        console.warn(`[CharacterRig] No animations found for ${appearance.modelKey}`);
+      }
+
       baseModel.traverse((child) => {
         if (child.name.toLowerCase().includes("body")) nodes.body = child;
         if (child.name.toLowerCase().includes("head")) nodes.head = child;
@@ -74,7 +118,8 @@ export class CharacterRig {
       });
     }
 
-    if (!nodes.body) {
+    // Only create procedural parts if no body found AND no mixer (meaning likely no model or just a container)
+    if (!nodes.body && !mixer) {
       const bodyGeo = new THREE.SphereGeometry(0.4, 16, 16);
       const bodyMat = new THREE.MeshStandardMaterial({
         color: appearance.baseColor ?? 0xffffff,
@@ -145,7 +190,7 @@ export class CharacterRig {
 
     // TODO: attach extra accessories based on appearance.attachments
 
-    return new CharacterRig(root, nodes);
+    return new CharacterRig(root, nodes, mixer, actions);
   }
 
   public updateFromBody(body: CANNON.Body) {
@@ -155,6 +200,35 @@ export class CharacterRig {
 
   public updateAnimation(delta: number, state: CharacterAnimState) {
     this.time += delta;
+
+    if (this.mixer) {
+      this.mixer.update(delta);
+
+      let targetAction: THREE.AnimationAction | undefined;
+
+      if (state === "run")
+        targetAction = this.actions.get("run") || this.actions.get("walk");
+      else if (state === "idle")
+        targetAction = this.actions.get("idle") || this.actions.get("walk");
+      else if (state === "jump") targetAction = this.actions.get("jump");
+      else if (state === "fall") targetAction = this.actions.get("jump");
+      else if (state === "dead")
+        targetAction = this.actions.get("death") || this.actions.get("idle");
+      else if (state === "win")
+        targetAction = this.actions.get("jump") || this.actions.get("run");
+
+      // If no specific action found, try to find by state name directly
+      if (!targetAction) targetAction = this.actions.get(state);
+
+      if (targetAction) {
+        if (this.currentAction !== targetAction) {
+          if (this.currentAction) this.currentAction.fadeOut(0.2);
+          targetAction.reset().fadeIn(0.2).play();
+          this.currentAction = targetAction;
+        }
+      }
+      return;
+    }
 
     const speed = 6;
     const runAmplitude = 0.6;

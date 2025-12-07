@@ -423,6 +423,11 @@ export class Game {
   }
 
   private startGame() {
+    // Update local player model to match selected character
+    if (this.myPlayerInfo.character) {
+      this.updateLocalPlayerModel(this.myPlayerInfo.character);
+    }
+
     // Spawn all players
     this.lobbyPlayers.forEach((p) => {
       if (p.id !== this.myPlayerInfo.id) {

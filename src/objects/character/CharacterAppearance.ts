@@ -7,7 +7,7 @@ export type CharacterAnimState =
   | "win";
 
 export interface CharacterAppearance {
-  id: string; // e.g. 'chicken', 'penguin'
+  id: string; // e.g. 'chicken', 'horse'
 
   // Base model key in Resources.models, e.g. 'chicken_rigged' or simple placeholder
   modelKey: string;

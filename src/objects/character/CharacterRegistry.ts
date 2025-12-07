@@ -10,18 +10,18 @@ const CHARACTER_DEFINITIONS: CharacterAppearance[] = [
     accentColor: 0xffcc66,
   },
   {
-    id: "penguin",
-    modelKey: "penguin",
-    baseColor: 0x000000,
-    beakColor: 0xffa500,
-    accentColor: 0xffcc66,
+    id: "horse",
+    modelKey: "horse",
+    baseColor: 0x8b4513,
+    beakColor: 0x000000,
+    accentColor: 0xd2691e,
   },
   {
-    id: "robot",
-    modelKey: "robot",
-    baseColor: 0x888888,
-    beakColor: 0xffffff,
-    accentColor: 0x00ffff,
+    id: "raccoon",
+    modelKey: "raccoon",
+    baseColor: 0x808080,
+    beakColor: 0x000000,
+    accentColor: 0x404040,
   },
 ];
 

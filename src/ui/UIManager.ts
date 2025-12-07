@@ -272,7 +272,7 @@ export class UIManager {
     }
 
     // 角色选择：简单 3D 按钮条
-    const chars = ["chicken", "penguin", "robot"];
+    const chars = ["chicken", "horse", "raccoon"];
     const me = players.find((p) => p.id === myId);
     const currentChar = me ? me.character : "";
     const spacing = 2.6;

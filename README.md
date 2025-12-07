@@ -5,7 +5,7 @@ A 3D multiplayer platformer game inspired by "Ultimate Chicken Horse", built wit
 ## Features
 
 *   **Multiplayer:** Host and Join games using PeerJS (P2P connection).
-*   **Lobby System:** Character selection (Chicken, Penguin, Robot) and player list.
+*   **Lobby System:** Character selection (Chicken, Horse, Raccoon) and player list.
 *   **Build Phase:** Players pick items from a "Party Box" and place them in the level to help themselves or hinder opponents.
 *   **Run Phase:** Platforming gameplay with jumping, sprinting, and physics-based interactions.
 *   **Items:**

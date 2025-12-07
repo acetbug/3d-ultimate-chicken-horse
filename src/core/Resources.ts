@@ -11,6 +11,7 @@ export class Resources {
     private audioLoader: THREE.AudioLoader;
 
     public models: Map<string, THREE.Group> = new Map();
+    public modelAnimations: Map<string, THREE.AnimationClip[]> = new Map();
     public textures: Map<string, THREE.Texture> = new Map();
     public sounds: Map<string, AudioBuffer> = new Map();
 
@@ -65,8 +66,30 @@ export class Resources {
       );
 
       // Register procedural character models
-      this.models.set("chicken", PlaceholderGenerator.createChicken());
-      this.models.set("penguin", PlaceholderGenerator.createPenguin());
+      this.loadModel(
+        "chicken",
+        import.meta.env.BASE_URL + "models/characters/chicken/chicken.glb",
+        (scene) => {
+          // Debug: Check size
+          const box = new THREE.Box3().setFromObject(scene);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          console.log(`[Resources] Loaded chicken model. Size: ${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}`);
+          
+          // Reset scale for now to debug, or keep it if user insists no scaling needed?
+          // User said "I think there is no scaling problem", implying I should remove my 0.01 scale.
+          // But if it IS huge, I need to know.
+          // Let's remove the scale for now as per user request/implication, but log the size.
+        }
+      );
+      this.loadModel(
+        "horse",
+        import.meta.env.BASE_URL + "models/characters/horse/horse.glb"
+      );
+      this.loadModel(
+        "raccoon",
+        import.meta.env.BASE_URL + "models/characters/raccoon/raccoon.glb"
+      );
 
       // Textures
       this.textures.set(
@@ -91,6 +114,7 @@ export class Resources {
                 onLoaded(gltf.scene);
             }
             this.models.set(name, gltf.scene);
+            this.modelAnimations.set(name, gltf.animations);
         });
     }
 
